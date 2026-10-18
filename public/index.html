@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8f6"><meta name="description" content="A little awareness. A healthier posture. Your live ESP32 posture companion.">
+  <title>PosturePal — A little more upright.</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/serene.css">
+  <script defer src="/socket.io/socket.io.js"></script><script defer src="/posture-state.js"></script><script defer src="/app.js"></script>
+</head>
+<body>
+  <svg class="svg-defs" aria-hidden="true"><defs>
+    <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M4 4v16h17M8 15l4-5 4 2 5-7"/></symbol>
+    <symbol id="icon-stretch" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M4 9l8 3 8-3M12 12v5m-5 4 5-4 5 4"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></symbol>
+    <symbol id="icon-leaf" viewBox="0 0 24 24"><path d="M19 4C5 2 2 13 9 17c7 4 12-4 10-13ZM5 21 16 8"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="icon-device" viewBox="0 0 24 24"><rect x="6" y="5" width="12" height="14" rx="3"/><path d="M9 2v3m6-3v3M9 19v3m6-3v3M3 9h3m12 0h3M3 15h3m12 0h3M10 10h4v4h-4z"/></symbol>
+  </defs></svg>
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard"><span class="brand-mark"><svg><use href="#icon-leaf"/></svg></span>Posture<span>Pal</span><small>YOUR POSTURE COMPANION</small></a>
+    <div class="nav-caption">YOUR SPACE</div>
+    <nav aria-label="Main navigation">
+      <a class="nav-item active" href="#dashboard" data-page="dashboard"><svg><use href="#icon-grid"/></svg>Overview<span class="nav-dot"></span></a>
+      <a class="nav-item" href="#insights" data-page="insights"><svg><use href="#icon-chart"/></svg>Session insights</a>
+      <a class="nav-item" href="#stretches" data-page="stretches"><svg><use href="#icon-stretch"/></svg>Mindful breaks</a>
+      <a class="nav-item" href="#settings" data-page="settings"><svg><use href="#icon-settings"/></svg>Device & settings</a>
+    </nav>
+    <div class="sidebar-note"><span class="tiny-flower">✳</span><h3>Small shifts.<br>Better habits.</h3><p>A healthier posture starts<br>with a little awareness.</p><span class="note-line"></span></div>
+    <div class="device-mini"><span class="device-icon"><svg><use href="#icon-device"/></svg></span><div><strong>Your smart vest</strong><small id="sidebarStatus">Waiting to connect</small></div><span id="deviceDot" class="dot muted"></span></div>
+    <div class="sidebar-footer">Made for a more mindful you <span>↗</span></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span class="breadcrumb">Your space <span>/</span> <strong id="pageLabel">Overview</strong></span><div class="topbar-right"><span id="dateLabel"></span><span class="avatar">P</span></div></header>
+    <main>
+      <section id="dashboard" class="page">
+        <div class="page-heading"><div><div class="eyebrow">A LITTLE AWARENESS GOES A LONG WAY</div><h1>Make room for better posture<span>.</span></h1><p id="welcomeText">Settle in, connect your vest, and let’s find your balance.</p></div><button id="demoBtn" class="button secondary"><span class="play-icon">▷</span> Try demo</button></div>
+        <div id="demoNotice" class="demo-notice" hidden>DEMO MODE <span>These are simulated readings. Session metrics are separate from your vest.</span></div>
+        <div class="overview-grid">
+          <article class="card posture-card" id="postureCard"><div class="card-top"><h2>Your posture, right now</h2><span id="sourceBadge" class="pill neutral"><span class="dot"></span> Awaiting device</span></div>
+            <div class="visual-stage"><div class="orbit orbit-outer"></div><div class="orbit orbit-inner"></div><span class="visual-label label-upper">THORACIC <i></i></span><span class="visual-label label-lower">LUMBAR <i></i></span>
+              <svg class="spine" viewBox="0 0 180 250" role="img" aria-label="Live spine illustration"><path class="shoulder" d="M47 92Q90 65 133 92"/><path class="pelvis" d="M58 224Q90 245 122 224"/><g id="spineJoints"><circle cx="90" cy="39" r="23"/><rect x="80" y="75" width="20" height="13" rx="6"/><rect x="78" y="96" width="24" height="14" rx="6"/><rect x="76" y="118" width="28" height="15" rx="7"/><rect x="74" y="141" width="32" height="16" rx="7"/><rect x="72" y="165" width="36" height="17" rx="8"/><rect x="70" y="190" width="40" height="18" rx="8"/></g></svg>
+              <div class="visual-spark spark-one">+</div><div class="visual-spark spark-two">+</div>
+            </div>
+            <div class="posture-summary" aria-live="polite"><span id="postureBadge" class="pill neutral">Ready when you are</span><h3 id="postureTitle">A fresh start for your spine.</h3><p id="postureDescription">Connect your ESP32 or explore with demo data.</p></div>
+            <div class="posture-footer"><span><span class="dot" id="liveDot"></span><span id="sampleLabel">No readings yet</span></span><span>Two sensors. One better habit.</span></div>
+          </article>
+          <div class="metrics-column">
+            <article class="metric-card mint"><div class="metric-heading"><span>Live threshold margin</span><span class="metric-symbol">↗</span></div><div class="metric-value" id="uprightValue">—<small>%</small></div><div class="progress-track"><div id="uprightProgress"></div></div><p id="uprightCaption">100% at baseline · 0% at threshold</p></article>
+            <article class="metric-card lavender"><div class="metric-heading"><span>Current alert-free streak</span><span class="metric-symbol">◷</span></div><div class="metric-value" id="streakValue">—<small>min</small></div><p>One comfortable moment at a time.</p><div class="metric-bottom">SESSION BEST <strong id="bestStreak">—</strong></div></article>
+            <article class="session-mini"><span class="session-clock">◴</span><div><span>Time with your vest</span><strong id="sessionTime">00:00</strong></div><span id="sessionSource">THIS SESSION</span></article>
+          </div>
+        </div>
+        <div class="sensors-grid">
+          <article class="card sensor-card"><div class="sensor-icon upper">⌁</div><div class="sensor-body"><div class="sensor-heading"><h2>Upper spine <small>THORACIC</small></h2><strong id="upperValue">— <small>ADC</small></strong></div><div class="sensor-track"><div id="upperBar"></div><i></i></div><p id="upperDetail">Waiting for sensor 01 <span>GPIO 34</span></p></div></article>
+          <article class="card sensor-card"><div class="sensor-icon lower">⌁</div><div class="sensor-body"><div class="sensor-heading"><h2>Lower spine <small>LUMBAR</small></h2><strong id="lowerValue">— <small>ADC</small></strong></div><div class="sensor-track"><div id="lowerBar"></div><i></i></div><p id="lowerDetail">Waiting for sensor 02 <span>GPIO 35</span></p></div></article>
+        </div>
+        <article class="card chart-card"><div class="card-top"><div><h2>The little shifts add up</h2><p>Your last 60 seconds of sensor activity</p></div><div class="chart-legend"><span><i class="upper-key"></i>Upper spine</span><span><i class="lower-key"></i>Lower spine</span><span class="chart-unit">RAW ADC</span></div></div><div class="chart-wrap"><canvas id="historyChart" role="img" aria-label="Upper and lower spine raw ADC readings over the last 60 seconds"></canvas><div class="chart-empty" id="chartEmpty">Your posture story will appear here.<small>Connect your vest or try the demo to begin.</small></div></div><div class="chart-axis"><span>60 seconds ago</span><span>Now</span></div></article>
+        <article class="break-banner"><span class="break-icon"><svg><use href="#icon-stretch"/></svg></span><div><span class="eyebrow">A MOMENT FOR YOURSELF</span><h3>A small reset can make a big difference.</h3><p>Relax your shoulders. Take a breath. Find your center.</p></div><button class="button light" id="quickStretch">Take a 1-min break <svg><use href="#icon-arrow"/></svg></button></article>
+      </section>
+      <section id="insights" class="page" hidden><div class="page-heading"><div><div class="eyebrow">YOUR PROGRESS, AT YOUR PACE</div><h1>Every little shift counts<span>.</span></h1><p>Measured in this browser session. Metrics reset when switching between demo and device.</p></div><button class="button secondary" id="exportBtn">Export readings ↓</button></div><div class="insight-grid"><article class="card"><h2>Tracked time</h2><div class="metric-value" id="insightTime">00:00</div><p>Only time between fresh readings is counted.</p></article><article class="card"><h2>Posture reminders</h2><div class="metric-value" id="alertCount">0</div><p>Times the vest’s delayed alert became active.</p></article><article class="card"><h2>Longest alert-free streak</h2><div class="metric-value" id="insightBest">00:00</div><p>Continuous observed time with no active device alert.</p></article></div><article class="card detail-card"><h2>A clear picture of your session</h2><p id="insightSummary">Start a live or demo session to see your progress here.</p><p>Alert-free time is measured directly from your vest’s alert_active flag. It includes the firmware’s configured grace period and does not prove that you are upright. Raw flex readings are sensor units, not spinal angles. Readings are kept in memory for this open tab, up to 3,600 samples.</p><button class="button secondary" id="resetSession">Reset session metrics</button></article></section>
+      <section id="stretches" class="page" hidden><div class="page-heading"><div><div class="eyebrow">PAUSE. BREATHE. RESET.</div><h1>A little space to unwind<span>.</span></h1><p>A gentle, timed break from sitting.</p></div></div><article class="card stretch-card"><span class="stretch-art"><svg><use href="#icon-stretch"/></svg></span><span class="eyebrow">YOUR ONE-MINUTE RESET</span><h2 id="stretchTitle">Let your shoulders settle.</h2><p id="stretchInstruction">Move gently within a comfortable range. Stop if you feel discomfort.</p><div id="stretchTimer">01:00</div><button class="button primary" id="stretchBtn">Begin mindful break</button></article></section>
+      <section id="settings" class="page" hidden><div class="page-heading"><div><div class="eyebrow">CONNECTED TO YOUR COMFORT</div><h1>Your vest, your balance<span>.</span></h1><p>Get your device ready for a comfortable session.</p></div></div><div class="settings-grid"><article class="card detail-card"><div class="card-top"><h2>Smart vest connection</h2><svg><use href="#icon-device"/></svg></div><dl><div><dt>Status</dt><dd id="settingsStatus">Waiting for ESP32</dd></div><div><dt>WebSocket endpoint</dt><dd><code id="wsEndpoint"></code></dd></div><div><dt>Calibration baseline</dt><dd id="baselineLabel">Set on vest · not transmitted</dd></div><div><dt>Bend threshold</dt><dd id="thresholdLabel">100 ADC · test configuration</dd></div><div><dt>Alert delay</dt><dd id="delayLabel">1 second · test configuration</dd></div><div><dt>Haptic output</dt><dd id="motorState">Waiting for device</dd></div></dl><p>Connect your laptop and ESP32 to the same Wi-Fi. Use this laptop’s LAN IP in the firmware’s server configuration.</p></article><article class="card detail-card"><h2>Find your neutral posture</h2><p>Wear your vest and sit comfortably upright. Tap the physical calibration button (GPIO 27) once, release it, and hold still for half a second. A short vibration confirms your neutral posture.</p><div class="calibration-note"><svg aria-hidden="true"><use href="#icon-device"/></svg><span>Calibrate using the button on your vest</span></div><p id="calibrationHelp" class="help">The updated firmware captures an average from both sensors and provides LED and vibration feedback. The dashboard observes readings and alerts; calibration stays on the device.</p><hr><h2>Gentle reminders</h2><label class="toggle-label" for="soundToggle">Play a soft chime on an alert<input type="checkbox" id="soundToggle" role="switch"></label><p class="help">Browser reminders can be snoozed. The vest’s vibration follows its own firmware.</p></article></div></section>
+      <footer class="main-footer"><span><svg><use href="#icon-leaf"/></svg> A little more upright. A little more you.</span><span>POSTUREPAL <i> / </i> ANTI-STOOP IOT</span></footer>
+    </main>
+  </div>
+  <aside id="alertToast" class="alert-toast" role="status" hidden><span class="alert-icon">↗</span><div><strong id="alertTitle">A gentle nudge to sit tall.</strong><p id="alertDescription">Your vest detected a sustained bend. Relax your shoulders and return to your neutral position.</p><button id="snoozeBtn">Snooze browser reminder · 1 min</button></div></aside>
+  <div class="notification" id="notification" role="status" hidden></div>
+</body>
+</html>
