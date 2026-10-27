@@ -8,15 +8,15 @@ The device now supports the requested **one-tap physical calibration** and **mot
 
 - GPIO 27 → GND: one debounced tap starts a 50-sample, approximately 0.5-second average of both flex sensors. Release the button and hold comfortably upright until the 200 ms LED/driver confirmation pulse. Holding the button does not repeatedly recalibrate.
 - GPIO 14 → GND: one debounced tap gives a 300 ms LED/driver test pulse. This tests the driver signal independently of sensor bending. The motor must be correctly wired and powered to vibrate.
-- Blocking button-feedback delays and the loop's `delay(100)` are replaced by timers so a short tap can be detected. Telemetry remains approximately 10 Hz.
+- Blocking button-feedback delays and the loop's `delay(100)` are replaced by timers so a short tap can be detected. Telemetry remains approximately 20 Hz.
 - Calibration clears the previous bend timer. Detection is paused while capturing a new baseline; no alert is fabricated for the confirmation pulse.
 - Baselines, threshold, calibration status, and driver status are added to telemetry. The original `flex1`, `flex2`, and `alert_active` fields remain compatible with the UI.
 
-The existing pin assignments, network configuration, root WebSocket path, 5-second reconnect interval, boot Wi-Fi wait, and boot calibration sequence are retained. For easier testing, detection now uses **absolute deviation > 100 ADC counts on either sensor, sustained for 1 second** (previously 500 counts / 5 seconds). Returning within threshold clears the posture alert. Calibration and motor-test pulses are intentional additional haptic outputs, separate from posture alerts.
+The existing pin assignments, network configuration, root WebSocket path, 5-second reconnect interval, boot Wi-Fi wait, and boot calibration sequence are retained. For easier testing, detection now uses **absolute deviation > 50 ADC counts on either sensor, sustained for 300 ms** (reduced from 100 counts / 1 second for dummy-model testing). Returning within threshold clears the posture alert. Calibration and motor-test pulses are intentional additional haptic outputs, separate from posture alerts.
 
 No browser commands are sent to the vest. Fit the vest first, then use the physical calibration button. The dashboard displays its reported baseline and capture status. Alert-free metrics exclude calibration capture intervals.
 
-See [motor wiring and fitting instructions](docs/MOTOR_AND_CALIBRATION.md) before powering the motor. Calibration establishes a wearer-specific reference; it does not turn raw flex values into anatomical angles or automatically tune the 100-count test sensitivity.
+See [motor wiring and fitting instructions](docs/MOTOR_AND_CALIBRATION.md) before powering the motor. Calibration establishes a wearer-specific reference; it does not turn raw flex values into anatomical angles or automatically tune the 50-count test sensitivity.
 
 ## Run
 
@@ -118,4 +118,6 @@ maximum deviation = max(abs(flex1 - baseline1), abs(flex2 - baseline2))
 margin % = clamp(100 × (1 - maximum deviation / threshold), 0, 100)
 ```
 
-At baseline it is 100%; halfway to threshold it is 50%; at or beyond threshold it is 0%. A crossing means **strictly greater than** threshold, matching the device rule. The UI shows that warning immediately, while the motor/confirmed device alert still uses its configured 1-second delay. Return within threshold clears the threshold warning. Session-wide alert-free time remains in Insights. Calibration hides the margin until capture completes, and missing baseline data shows an unavailable value rather than a fabricated percentage. Snooze hides the popup but leaves the warning card and live percentage visible.
+At baseline it is 100%; halfway to threshold it is 50%; at or beyond threshold it is 0%. A crossing means **strictly greater than** threshold, matching the device rule. The UI shows that warning immediately, while the motor/confirmed device alert still uses its configured 300 ms delay. Return within threshold clears the threshold warning. Session-wide alert-free time remains in Insights. Calibration hides the margin until capture completes, and missing baseline data shows an unavailable value rather than a fabricated percentage. Snooze hides the popup but leaves the warning card and live percentage visible.
+
+For motor troubleshooting, tap the GPIO 14 test button first. If the motor works there, inspect Serial Monitor: `bend`, `held`, `alert`, and `motor GPIO` distinguish an unconfirmed threshold crossing from a commanded motor output. A short bend that returns within threshold before 300 ms does not activate the motor. Restart the backend and re-upload the sketch after changing firmware settings.

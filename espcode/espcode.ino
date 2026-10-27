@@ -15,9 +15,9 @@ const int BTN_MODE_PIN = 14; // One tap to GND: 300 ms driver/motor test
 const int LED_RED_PIN = 25;
 const int LED_GRN_PIN = 26;
 const int MOTOR_PIN = 32;    // Active-high DRIVER input, never bare motor power
-const int stoopThreshold = 100; // Sensitive test setting; ADC deviation from calibration
-const unsigned long STOOP_DELAY = 1000; // One continuous second before an alert
-const unsigned long SAMPLE_INTERVAL = 100;
+const int stoopThreshold = 50; // Sensitive test setting; ADC deviation from calibration
+const unsigned long STOOP_DELAY = 300; // Faster dummy-model testing: 0.3 seconds
+const unsigned long SAMPLE_INTERVAL = 50; // Publish diagnostics at approximately 20 Hz
 const unsigned long DEBOUNCE_MS = 30;
 const unsigned long CALIBRATION_SAMPLE_MS = 10;
 const int CALIBRATION_SAMPLES = 50;
@@ -118,7 +118,8 @@ void setup() {
   delay(1000);
   baselineFlex1 = analogRead(FLEX1_PIN);
   baselineFlex2 = analogRead(FLEX2_PIN);
-  Serial.println("Boot baseline set. Fit the vest, sit comfortably upright, then tap CALIBRATE.");
+  Serial.println("Boot baseline set. Position the model/sensors, then tap CALIBRATE.");
+  Serial.printf("Alert settings: deviation > %d ADC for %lu ms. GPIO 14 tests the motor independently.\n", stoopThreshold, STOOP_DELAY);
 }
 
 void loop() {
@@ -151,8 +152,9 @@ void loop() {
   digitalWrite(LED_RED_PIN, motorActive ? HIGH : LOW);
   if (now - lastSampleTime < SAMPLE_INTERVAL) return;
   lastSampleTime = now;
-  Serial.printf("Flex: %d / %d | delta: %d / %d | alert: %d\n", currentFlex1, currentFlex2,
-    abs(currentFlex1 - baselineFlex1), abs(currentFlex2 - baselineFlex2), alertActive);
+  Serial.printf("Flex: %d / %d | delta: %d / %d | bend: %d | held: %lu ms | alert: %d | motor GPIO: %d\n", currentFlex1, currentFlex2,
+    abs(currentFlex1 - baselineFlex1), abs(currentFlex2 - baselineFlex2), bending,
+    bending ? now - stoopStartTime : 0UL, alertActive, motorActive);
   // Original three fields are preserved; extra fields let the UI reflect calibration.
   char json[384];
   snprintf(json, sizeof(json),

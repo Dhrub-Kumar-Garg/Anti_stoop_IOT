@@ -64,12 +64,12 @@ function createBridge() {
         let bendingSince = null;
         const tick = () => {
             const wave = (Math.sin(demoStep++ / 12) + 1) / 2;
-            const flex1 = Math.round(1800 + wave * 180);
-            const flex2 = Math.round(1900 + wave * 140);
-            const bending = flex1 - 1800 > 100 || flex2 - 1900 > 100;
+            const flex1 = Math.round(1800 + wave * 90);
+            const flex2 = Math.round(1900 + wave * 70);
+            const bending = flex1 - 1800 > 50 || flex2 - 1900 > 50;
             bendingSince = bending ? (bendingSince ?? Date.now()) : null;
-            publish({ flex1, flex2, baseline1: 1800, baseline2: 1900, threshold: 100, alert_delay_ms: 1000,
-                bending, alert_active: bendingSince !== null && Date.now() - bendingSince >= 1000 }, true);
+            publish({ flex1, flex2, baseline1: 1800, baseline2: 1900, threshold: 50, alert_delay_ms: 300,
+                bending, alert_active: bendingSince !== null && Date.now() - bendingSince >= 300 }, true);
         };
         simulation = setInterval(tick, 500);
         tick();

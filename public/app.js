@@ -126,9 +126,9 @@ function renderPacket(data) {
   const bending = state.thresholdCrossed;
   $('postureCard').classList.toggle('warning', warning || bending);
   $('postureBadge').className = `pill ${warning || bending ? 'warning' : baseline ? 'good' : 'neutral'}`;
-  $('postureBadge').textContent = warning ? 'Time for a gentle reset' : bending ? 'Bend threshold crossed' : baseline ? 'Comfortably aligned' : 'No posture alert';
+  $('postureBadge').textContent = warning ? 'Device-confirmed alert' : bending ? 'Bend threshold crossed' : baseline ? 'Comfortably aligned' : 'No posture alert';
   $('postureTitle').textContent = warning ? 'Let’s find your balance again.' : bending ? 'Come back to your center.' : baseline ? 'Looking good. Keep it comfortable.' : 'A quiet moment for your posture.';
-  $('postureDescription').textContent = warning ? 'Your vest’s posture reminder is active.' : bending ? 'Your calibrated threshold is crossed. The vest confirms sustained bends after its configured delay.' : baseline ? 'Both sensors are within your calibrated posture threshold.' : 'Your vest is streaming. Its posture reminder is currently inactive.';
+  $('postureDescription').textContent = warning ? 'The ESP32 has confirmed a sustained bend. Check Haptic output for its reported motor-driver signal.' : bending ? 'Your calibrated threshold is crossed. The vest confirms sustained bends after its configured delay.' : baseline ? 'Both sensors are within your calibrated posture threshold.' : 'Your vest is streaming. Its posture reminder is currently inactive.';
   if (state.calibrating) {
     $('postureBadge').className = 'pill neutral';
     $('postureBadge').textContent = 'Calibrating';
@@ -155,6 +155,9 @@ function renderPacket(data) {
   $('delayLabel').textContent = Number.isFinite(data.alert_delay_ms) ? `${data.alert_delay_ms / 1000} seconds · device firmware` : 'Device controlled · not transmitted';
   $('motorState').textContent = data.motor_test ? 'Motor-test driver pulse'
     : data.motor_active ? 'Driver signal ON' : typeof data.motor_active === 'boolean' ? 'Driver signal OFF' : 'Not reported by firmware';
+  if (bending && !warning && Number.isFinite(data.alert_delay_ms)) {
+    $('postureDescription').textContent = `Threshold crossed. Hold the bend for ${data.alert_delay_ms / 1000} seconds continuously for the device alert.`;
+  }
   renderAlert(data);
 }
 function renderAlert(data) {
@@ -162,7 +165,9 @@ function renderAlert(data) {
   $('alertTitle').textContent = state.deviceAlert ? 'Your vest’s posture alert is active.' : 'Your bend threshold is crossed.';
   $('alertDescription').textContent = state.deviceAlert
     ? 'A sustained bend was confirmed by the device. Return toward your calibrated neutral position.'
-    : 'One or both sensors moved beyond the calibrated threshold. The motor waits for a sustained bend before activating.';
+    : Number.isFinite(data.alert_delay_ms)
+      ? `Threshold crossed. Hold for ${data.alert_delay_ms / 1000} seconds continuously for the device to activate the motor output.`
+      : 'Threshold crossed. The motor waits for the device’s configured delay; check that the latest sketch is uploaded.';
   $('alertToast').hidden = !state.warning || Date.now() < snoozedUntil;
 }
 socket.on('connect', () => { connected = true; renderConnection(); });
