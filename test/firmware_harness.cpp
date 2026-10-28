@@ -9,7 +9,7 @@ void advance(unsigned long duration) {
   for (unsigned long i = 0; i < duration; i++) { fakeNow++; loop(); }
 }
 int main() {
-  analogPins[34] = 1000; analogPins[35] = 1200;
+  analogPins[34] = 1000; analogPins[35] = 1200; analogPins[33] = 2000;
   setup();
   assert(baselineFlex1 == 1000 && baselineFlex2 == 1200);
   analogPins[34] = 1000 + stoopThreshold; // Exact threshold does not trigger.
@@ -46,5 +46,41 @@ int main() {
   inputPins[27] = LOW; advance(31); assert(calibrating && outputPins[32] == LOW);
   advance(500); assert(calibrationId == 2 && baselineFlex2 == 600);
   advance(201); assert(outputPins[32] == LOW && !isStooping);
+  // Healthy channels ignore the knob, even when it is well beyond its own baseline.
+  analogPins[33] = 2400;
+  advance(400);
+  assert(!upperSource.usingPot && !lowerSource.usingPot && outputPins[32] == LOW);
+  // A zero reading is excluded while the 2-second fallback decision is pending.
+  analogPins[34] = 0;
+  advance(FLEX_ZERO_TIMEOUT - 1);
+  assert(!upperSource.usingPot && !upperSource.ready(0) && outputPins[32] == LOW);
+  advance(2);
+  assert(upperSource.usingPot && !lowerSource.usingPot);
+  assert(baselineFlex1 == 2000 && baselineFlex2 == 600);
+  assert(outputPins[32] == LOW); // Switching must not inherit a prior bend timer.
+  advance(STOOP_DELAY + 50);
+  assert(outputPins[32] == HIGH);
+  assert(webSocket.lastPacket.find("\"flex1\":2400") != std::string::npos);
+  assert(webSocket.lastPacket.find("\"source1\":\"pot\"") != std::string::npos);
+  assert(webSocket.lastPacket.find("\"raw_flex1\":0") != std::string::npos);
+  analogPins[33] = 2000; advance(1); assert(outputPins[32] == LOW);
+  // Recovery must be continuously non-zero, not one noisy frame.
+  analogPins[34] = 1600; advance(200); assert(upperSource.usingPot);
+  analogPins[34] = 0; advance(20); assert(upperSource.usingPot);
+  analogPins[34] = 1600; advance(FLEX_RECOVERY_TIME); assert(upperSource.usingPot);
+  advance(1); assert(!upperSource.usingPot && baselineFlex1 == 1600);
+  analogPins[33] = 4095; advance(400); assert(outputPins[32] == LOW);
+  // Both channels can use the same potentiometer, with explicit source labels.
+  analogPins[33] = 2000; analogPins[34] = 0; analogPins[35] = 0;
+  advance(FLEX_ZERO_TIMEOUT + 1);
+  assert(upperSource.usingPot && lowerSource.usingPot);
+  assert(baselineFlex1 == 2000 && baselineFlex2 == 2000);
+  assert(outputPins[32] == LOW);
+  analogPins[33] = 1900; advance(STOOP_DELAY + 1); assert(outputPins[32] == HIGH);
+  // Calibration in fallback mode captures the pot without destroying good flex baselines.
+  inputPins[27] = HIGH; advance(31); inputPins[27] = LOW; advance(31);
+  assert(calibrating); advance(500);
+  assert(potBaseline == 1900 && upperSource.neutral == 1600 && lowerSource.neutral == 600);
+  advance(201); assert(outputPins[32] == LOW);
   return 0;
 }

@@ -181,3 +181,37 @@ h2 { color: #526371; font-weight: 550; }
 @media (prefers-reduced-motion: reduce) {
   body::before, .orbit-inner { animation: none; }
 }
+
+/* Visible backup cue; source substitution must never look like genuine flex data. */
+.fallback-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px 13px;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid #c59a32;
+  border-left: 5px solid #ad8417;
+  border-radius: 12px;
+  background: #f3df96e6;
+  color: #604608;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.fallback-notice strong { font-size: 10px; letter-spacing: .8px; }
+.fallback-dot { width: 8px; height: 8px; border-radius: 50%; background: #9d7510; }
+.fallback-tag {
+  display: inline-block;
+  padding: 3px 6px;
+  margin-top: 4px;
+  border-radius: 5px;
+  border: 1px solid #c6a34c;
+  background: #f3df96;
+  color: #604608;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .4px;
+  white-space: nowrap;
+}
+.fallback-tag.waiting { background: #edf0f3; border-color: #cbd3d9; color: #637180; }
+@media(max-width:600px) { .fallback-notice { font-size: 11px; } }

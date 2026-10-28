@@ -61,3 +61,34 @@ test('calibration and disconnect do not leave a stale live percentage or alert',
   assert.equal(ui.element('alertToast').hidden, true);
   assert.equal(ui.element('uprightValue').innerHTML, '—<small>%</small>');
 });
+
+test('mustard backup notice identifies only substituted channels and clears after recovery', () => {
+  const ui = dashboard();
+  ui.packet(base); assert.equal(ui.element('fallbackNotice').hidden, true);
+  ui.packet({ ...base, flex1: 2000, baseline1: 2000, source1: 'pot', source2: 'flex', raw_flex1: 0, pot_value: 2000 });
+  assert.equal(ui.element('fallbackNotice').hidden, false);
+  assert.match(ui.element('fallbackText').textContent, /Upper/);
+  assert.equal(ui.element('upperSource').textContent, 'POT BACKUP');
+  assert.match(ui.element('postureTitle').textContent, /Potentiometer backup/);
+  assert.equal(ui.element('lowerSource').hidden, true);
+  assert.match(ui.element('upperDetail').textContent, /Potentiometer/);
+  ui.packet({ ...base, source1: 'pot', source2: 'pot' });
+  assert.match(ui.element('fallbackText').textContent, /Both/);
+  ui.packet(base); assert.equal(ui.element('fallbackNotice').hidden, true);
+  assert.equal(ui.element('upperSource').hidden, true);
+});
+test('zero inputs pending fallback do not fabricate a threshold warning', () => {
+  const ui = dashboard();
+  ui.packet({ ...base, flex1: 0, flex1_ready: false });
+  assert.equal(ui.element('alertToast').hidden, true);
+  assert.equal(ui.element('uprightValue').innerHTML, '100<small>%</small>');
+  assert.equal(ui.element('upperSource').textContent, 'CHECK INPUT');
+  ui.packet({ ...base, flex1: 0, flex2: 0, flex1_ready: false, flex2_ready: false });
+  assert.equal(ui.element('uprightValue').innerHTML, '—<small>%</small>');
+  assert.equal(ui.element('alertToast').hidden, true);
+});
+test('disconnect hides the backup prompt rather than inviting use of a disconnected device', () => {
+  const ui = dashboard(); ui.packet({ ...base, source1: 'pot' });
+  assert.equal(ui.element('fallbackNotice').hidden, false);
+  ui.handlers.disconnect(); assert.equal(ui.element('fallbackNotice').hidden, true);
+});

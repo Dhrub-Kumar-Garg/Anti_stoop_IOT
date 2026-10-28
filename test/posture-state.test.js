@@ -33,3 +33,12 @@ test('server preserves calibration and motor metadata required by the UI', () =>
   assert.equal(data.motor_active, false); assert.equal(data.motor_test, false);
   assert.equal(data.alert_delay_ms, 1000);
 });
+
+test('server preserves source provenance and excludes unavailable channels from bending', () => {
+  const input = { ...packet, flex1: 0, flex1_ready: false, flex2_ready: true, source1: 'flex', source2: 'pot', raw_flex1: 0, raw_flex2: 0, pot_value: 500 };
+  const data = normalizePacket(input);
+  assert.equal(data.bending, false); assert.equal(data.source2, 'pot');
+  assert.equal(data.raw_flex2, 0); assert.equal(data.pot_value, 500);
+  assert.equal(assess(data).margin, 100);
+  assert.equal(normalizePacket({ ...packet, source1: 'arbitrary value' }).source1, undefined);
+});

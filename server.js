@@ -11,8 +11,14 @@ function normalizePacket(input) {
         || input.flex1 < 0 || input.flex1 > 4095 || input.flex2 < 0 || input.flex2 > 4095
         || typeof input.alert_active !== 'boolean') return null;
     const packet = { flex1: input.flex1, flex2: input.flex2, alert_active: input.alert_active };
-    for (const key of ['calibrating', 'motor_test', 'motor_active']) {
+    for (const key of ['calibrating', 'motor_test', 'motor_active', 'flex1_ready', 'flex2_ready']) {
         if (typeof input[key] === 'boolean') packet[key] = input[key];
+    }
+    for (const key of ['raw_flex1', 'raw_flex2', 'pot_value']) {
+        if (Number.isInteger(input[key]) && input[key] >= 0 && input[key] <= 4095) packet[key] = input[key];
+    }
+    for (const key of ['source1', 'source2']) {
+        if (input[key] === 'flex' || input[key] === 'pot') packet[key] = input[key];
     }
     if (Number.isSafeInteger(input.calibration_id) && input.calibration_id >= 0) packet.calibration_id = input.calibration_id;
     if (Number.isSafeInteger(input.alert_delay_ms) && input.alert_delay_ms >= 0) packet.alert_delay_ms = input.alert_delay_ms;
@@ -21,8 +27,8 @@ function normalizePacket(input) {
         && Number.isInteger(input.threshold) && input.threshold > 0 && input.threshold <= 4095) {
         Object.assign(packet, {
             baseline1: input.baseline1, baseline2: input.baseline2, threshold: input.threshold,
-            bending: Math.abs(input.flex1 - input.baseline1) > input.threshold
-                || Math.abs(input.flex2 - input.baseline2) > input.threshold,
+            bending: (packet.flex1_ready !== false && Math.abs(input.flex1 - input.baseline1) > input.threshold)
+                || (packet.flex2_ready !== false && Math.abs(input.flex2 - input.baseline2) > input.threshold),
         });
     }
     return packet;

@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
+#include "FlexFallback.h"
 
 // Network configuration: both the laptop and ESP32 must use this hotspot.
 const char* ssid = "P600101";
@@ -10,6 +11,11 @@ const uint16_t serverPort = 5001;
 WebSocketsClient webSocket;
 const int FLEX1_PIN = 34;
 const int FLEX2_PIN = 35;
+const int POT_PIN = 33; // Wiper; outer potentiometer terminals to 3.3 V and GND
+const unsigned long FLEX_ZERO_TIMEOUT = 2000;
+const unsigned long FLEX_RECOVERY_TIME = 1000;
+FlexFallback upperSource, lowerSource;
+int potBaseline = 0;
 const int BTN_ZERO_PIN = 27; // One tap to GND: capture neutral posture
 const int BTN_MODE_PIN = 14; // One tap to GND: 300 ms driver/motor test
 const int LED_RED_PIN = 25;
@@ -30,6 +36,9 @@ bool calibrating = false;
 unsigned long calibrationId = 0;
 long calibrationSum1 = 0;
 long calibrationSum2 = 0;
+long calibrationPotSum = 0;
+bool calibrationUpperGood = true;
+bool calibrationLowerGood = true;
 int calibrationSamples = 0;
 unsigned long lastCalibrationSample = 0;
 unsigned long lastSampleTime = 0;
@@ -67,7 +76,8 @@ void startFeedback(unsigned long now, unsigned long duration, bool test) {
 void beginCalibration(unsigned long now) {
   calibrating = true;
   calibrationSamples = 0;
-  calibrationSum1 = calibrationSum2 = 0;
+  calibrationSum1 = calibrationSum2 = calibrationPotSum = 0;
+  calibrationUpperGood = calibrationLowerGood = true;
   lastCalibrationSample = now;
   isStooping = false;
   feedbackRunning = motorTestRunning = false;
@@ -79,11 +89,19 @@ void beginCalibration(unsigned long now) {
 void updateCalibration(unsigned long now) {
   if (!calibrating || now - lastCalibrationSample < CALIBRATION_SAMPLE_MS) return;
   lastCalibrationSample = now;
-  calibrationSum1 += analogRead(FLEX1_PIN);
-  calibrationSum2 += analogRead(FLEX2_PIN);
+  const int raw1 = analogRead(FLEX1_PIN);
+  const int raw2 = analogRead(FLEX2_PIN);
+  calibrationSum1 += raw1;
+  calibrationSum2 += raw2;
+  calibrationPotSum += analogRead(POT_PIN);
+  calibrationUpperGood = calibrationUpperGood && raw1 > 0;
+  calibrationLowerGood = calibrationLowerGood && raw2 > 0;
   if (++calibrationSamples < CALIBRATION_SAMPLES) return;
-  baselineFlex1 = calibrationSum1 / CALIBRATION_SAMPLES;
-  baselineFlex2 = calibrationSum2 / CALIBRATION_SAMPLES;
+  upperSource.captureNeutral(calibrationSum1 / CALIBRATION_SAMPLES, calibrationUpperGood);
+  lowerSource.captureNeutral(calibrationSum2 / CALIBRATION_SAMPLES, calibrationLowerGood);
+  potBaseline = calibrationPotSum / CALIBRATION_SAMPLES;
+  baselineFlex1 = upperSource.baseline(potBaseline);
+  baselineFlex2 = lowerSource.baseline(potBaseline);
   calibrationId++;
   calibrating = false;
   isStooping = false;
@@ -116,8 +134,11 @@ void setup() {
   webSocket.setReconnectInterval(5000);
   // Keep the original boot baseline; tap again after fitting the vest on the wearer.
   delay(1000);
-  baselineFlex1 = analogRead(FLEX1_PIN);
-  baselineFlex2 = analogRead(FLEX2_PIN);
+  upperSource.captureNeutral(analogRead(FLEX1_PIN), true);
+  lowerSource.captureNeutral(analogRead(FLEX2_PIN), true);
+  potBaseline = analogRead(POT_PIN);
+  baselineFlex1 = upperSource.baseline(potBaseline);
+  baselineFlex2 = lowerSource.baseline(potBaseline);
   Serial.println("Boot baseline set. Position the model/sensors, then tap CALIBRATE.");
   Serial.printf("Alert settings: deviation > %d ADC for %lu ms. GPIO 14 tests the motor independently.\n", stoopThreshold, STOOP_DELAY);
 }
@@ -125,6 +146,16 @@ void setup() {
 void loop() {
   webSocket.loop();
   const unsigned long now = millis();
+  const int rawFlex1 = analogRead(FLEX1_PIN);
+  const int rawFlex2 = analogRead(FLEX2_PIN);
+  const int potValue = analogRead(POT_PIN);
+  const bool upperChanged = upperSource.update(rawFlex1, now, FLEX_ZERO_TIMEOUT, FLEX_RECOVERY_TIME);
+  const bool lowerChanged = lowerSource.update(rawFlex2, now, FLEX_ZERO_TIMEOUT, FLEX_RECOVERY_TIME);
+  if (upperChanged || lowerChanged) {
+    isStooping = false; // A new source must satisfy the full alert delay.
+    Serial.printf("Input sources: upper=%s, lower=%s. Pot baseline=%d.\n",
+      upperSource.usingPot ? "pot" : "flex", lowerSource.usingPot ? "pot" : "flex", potBaseline);
+  }
   const bool calibrationTap = calibrationButton.tapped(now);
   const bool motorTap = motorButton.tapped(now);
   if (calibrationTap && !calibrating) beginCalibration(now);
@@ -138,11 +169,15 @@ void loop() {
     motorTestRunning = false;
   }
 
-  const int currentFlex1 = analogRead(FLEX1_PIN);
-  const int currentFlex2 = analogRead(FLEX2_PIN);
+  const int currentFlex1 = upperSource.reading(rawFlex1, potValue);
+  const int currentFlex2 = lowerSource.reading(rawFlex2, potValue);
+  baselineFlex1 = upperSource.baseline(potBaseline);
+  baselineFlex2 = lowerSource.baseline(potBaseline);
+  const bool upperReady = upperSource.ready(rawFlex1);
+  const bool lowerReady = lowerSource.ready(rawFlex2);
   const bool bending = !calibrating &&
-    (abs(currentFlex1 - baselineFlex1) > stoopThreshold ||
-     abs(currentFlex2 - baselineFlex2) > stoopThreshold);
+    ((upperReady && abs(currentFlex1 - baselineFlex1) > stoopThreshold) ||
+     (lowerReady && abs(currentFlex2 - baselineFlex2) > stoopThreshold));
   if (bending && !isStooping) stoopStartTime = now;
   isStooping = bending;
   const bool alertActive = bending && now - stoopStartTime >= STOOP_DELAY;
@@ -156,11 +191,13 @@ void loop() {
     abs(currentFlex1 - baselineFlex1), abs(currentFlex2 - baselineFlex2), bending,
     bending ? now - stoopStartTime : 0UL, alertActive, motorActive);
   // Original three fields are preserved; extra fields let the UI reflect calibration.
-  char json[384];
+  char json[768];
   snprintf(json, sizeof(json),
-    "{\"flex1\":%d,\"flex2\":%d,\"alert_active\":%s,\"baseline1\":%d,\"baseline2\":%d,\"threshold\":%d,\"alert_delay_ms\":%lu,\"calibrating\":%s,\"calibration_id\":%lu,\"motor_test\":%s,\"motor_active\":%s}",
+    "{\"flex1\":%d,\"flex2\":%d,\"alert_active\":%s,\"baseline1\":%d,\"baseline2\":%d,\"threshold\":%d,\"alert_delay_ms\":%lu,\"calibrating\":%s,\"calibration_id\":%lu,\"motor_test\":%s,\"motor_active\":%s,\"raw_flex1\":%d,\"raw_flex2\":%d,\"pot_value\":%d,\"source1\":\"%s\",\"source2\":\"%s\",\"flex1_ready\":%s,\"flex2_ready\":%s}",
     currentFlex1, currentFlex2, alertActive ? "true" : "false", baselineFlex1, baselineFlex2,
     stoopThreshold, STOOP_DELAY, calibrating ? "true" : "false", calibrationId,
-    motorTestRunning ? "true" : "false", motorActive ? "true" : "false");
+    motorTestRunning ? "true" : "false", motorActive ? "true" : "false",
+    rawFlex1, rawFlex2, potValue, upperSource.usingPot ? "pot" : "flex", lowerSource.usingPot ? "pot" : "flex",
+    upperReady ? "true" : "false", lowerReady ? "true" : "false");
   webSocket.sendTXT(json);
 }

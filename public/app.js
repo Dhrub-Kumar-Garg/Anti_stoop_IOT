@@ -67,6 +67,7 @@ function renderMetrics() {
   $('uprightProgress').style.width = `${margin ?? 0}%`;
   $('uprightCaption').textContent = latest?.calibrating ? 'Capturing your neutral posture…'
     : latest && !hasBaseline(latest) ? 'Requires baseline telemetry from the updated sketch'
+    : latest && (latest.flex1_ready === false || latest.flex2_ready === false) ? 'Waiting for input · available channels only'
     : '100% at baseline · 0% at threshold';
   $('streakValue').innerHTML = `${trackedMs ? Math.floor(streakMs / 60000) : '—'}<small>min</small>`;
   $('bestStreak').textContent = duration(bestMs);
@@ -111,6 +112,8 @@ function renderConnection() {
     $('welcomeText').textContent = 'Settle in, connect your vest, and let’s find your balance.';
     $('alertToast').hidden = true;
     $('motorState').textContent = 'No fresh device status';
+    $('fallbackNotice').hidden = true;
+    $('upperSource').hidden = $('lowerSource').hidden = true;
     for (const key of ['upper', 'lower']) {
       $(`${key}Value`).innerHTML = '— <small>ADC</small>';
       $(`${key}Bar`).style.width = '0%';
@@ -121,7 +124,7 @@ function renderConnection() {
 }
 function renderPacket(data) {
   const state = PostureState.assess(data);
-  const baseline = state.baseline;
+  const baseline = hasBaseline(data);
   const warning = state.deviceAlert;
   const bending = state.thresholdCrossed;
   $('postureCard').classList.toggle('warning', warning || bending);
@@ -135,18 +138,41 @@ function renderPacket(data) {
     $('postureTitle').textContent = 'Hold your neutral posture.';
     $('postureDescription').textContent = 'Capturing both sensors. Wait for the confirmation pulse.';
   }
+  if (!state.calibrating && !state.ready1 && !state.ready2) {
+    $('postureBadge').className = 'pill neutral';
+    $('postureBadge').textContent = 'Checking sensor inputs';
+    $('postureTitle').textContent = 'Waiting for a usable input.';
+    $('postureDescription').textContent = 'Zero-valued sensors switch to potentiometer backup after two continuous seconds. Recalibrate if a recovered sensor has no reference.';
+  }
+  const replacements = [];
+  if (data.source1 === 'pot') replacements.push('upper');
+  if (data.source2 === 'pot') replacements.push('lower');
+  if (replacements.length && !state.warning && !state.calibrating) {
+    $('postureBadge').textContent = 'Test input within threshold';
+    $('postureTitle').textContent = 'Potentiometer backup is ready.';
+    $('postureDescription').textContent = 'Live readings include a manual knob input, identified in the mustard notice.';
+  }
+  $('fallbackNotice').hidden = replacements.length === 0;
+  $('fallbackText').textContent = replacements.length === 2
+    ? 'Both flex inputs unavailable — turn the knob to control both channels.'
+    : `${replacements[0] === 'upper' ? 'Upper' : 'Lower'} flex input unavailable — turn the knob for that channel.`;
   $('welcomeText').textContent = demo ? 'Explore how your posture companion responds, one little shift at a time.' : warning ? 'A gentle reset is all it takes. Your vest is here to help.' : 'A little check-in with your posture. You’re in the right place.';
   ['upper', 'lower'].forEach((key, index) => {
     const value = data[`flex${index + 1}`];
+    const ready = data[`flex${index + 1}_ready`] !== false;
+    const isPot = data[`source${index + 1}`] === 'pot';
     const deviation = baseline ? Math.abs(value - data[`baseline${index + 1}`]) : null;
+    $(`${key}Source`).hidden = !isPot && ready;
+    $(`${key}Source`).textContent = isPot ? 'POT BACKUP' : 'CHECK INPUT';
+    $(`${key}Source`).className = isPot ? 'fallback-tag' : 'fallback-tag waiting';
     $(`${key}Value`).innerHTML = `${value}<small>ADC</small>`;
-    $(`${key}Bar`).style.width = `${Math.min(100, (baseline ? deviation / (data.threshold * 2) : value / 4095) * 100)}%`;
+    $(`${key}Bar`).style.width = `${ready ? Math.min(100, (baseline ? deviation / (data.threshold * 2) : value / 4095) * 100) : 0}%`;
     const track = $(`${key}Bar`).parentElement;
     track.querySelector('i').style.display = baseline ? 'block' : 'none';
     track.querySelector('i').style.left = '50%';
-    $(`${key}Detail`).textContent = baseline ? `Δ ${deviation} from baseline ${data[`baseline${index + 1}`]} · threshold ${data.threshold}` : 'Raw sensor reading · 0–4095 ADC';
+    $(`${key}Detail`).textContent = !ready ? 'Input unavailable · waiting for backup or calibration' : isPot ? `Potentiometer · raw flex ${data[`raw_flex${index + 1}`] ?? '—'} · Δ ${deviation ?? '—'}` : baseline ? `Δ ${deviation} from baseline ${data[`baseline${index + 1}`]} · threshold ${data.threshold}` : 'Raw sensor reading · 0–4095 ADC';
   });
-  const bend = baseline ? Math.min(1, Math.max(Math.abs(data.flex1 - data.baseline1), Math.abs(data.flex2 - data.baseline2)) / (data.threshold * 2)) : warning ? .75 : 0;
+  const bend = state.baseline ? Math.min(1, state.deviation / (data.threshold * 2)) : warning ? .75 : 0;
   document.querySelectorAll('#spineJoints > *').forEach((joint, index) => {
     joint.style.transform = `translate(${bend * (6 - index) * 5}px, ${bend * (6 - index)}px)`;
   });
@@ -235,7 +261,7 @@ $('soundToggle').addEventListener('change', async event => {
 $('resetSession').addEventListener('click', () => { clearSession(); notify('Session metrics reset.'); });
 $('exportBtn').addEventListener('click', () => {
   if (!samples.length) return;
-  const columns = ['browser_time', 'received_at', 'simulated', 'flex1', 'flex2', 'baseline1', 'baseline2', 'threshold', 'bending', 'alert_active'];
+  const columns = ['browser_time', 'received_at', 'simulated', 'flex1', 'flex2', 'baseline1', 'baseline2', 'threshold', 'bending', 'alert_active', 'raw_flex1', 'raw_flex2', 'pot_value', 'source1', 'source2', 'flex1_ready', 'flex2_ready'];
   const csv = [columns.join(','), ...samples.map(row => columns.map(key => row[key] ?? '').join(','))].join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = `posturepal-${sessionSource}-${new Date().toISOString().slice(0, 10)}.csv`;

@@ -18,6 +18,14 @@ No browser commands are sent to the vest. Fit the vest first, then use the physi
 
 See [motor wiring and fitting instructions](docs/MOTOR_AND_CALIBRATION.md) before powering the motor. Calibration establishes a wearer-specific reference; it does not turn raw flex values into anatomical angles or automatically tune the 50-count test sensitivity.
 
+## Potentiometer backup
+
+One potentiometer can now back up a flex input that stays at **exactly zero for 2 seconds**. The flex sensors stay connected; healthy channels ignore knob changes. Connect the potentiometer ends to **3.3 V and GND**, and its wiper to **GPIO 33**. Keep it near the middle during calibration so the firmware captures its separate neutral reference.
+
+A mustard **USE POTENTIOMETER** notice identifies the substituted channel. If both flex inputs fail, the same knob controls both channels and the UI says so. The original raw readings and active sources remain available in telemetry and CSV. A sensor returns to flex mode after **1 continuous second of non-zero readings**. A sensor without a valid prior baseline needs recalibration after recovery. Zero inputs are excluded while waiting for backup, preventing a false bend alert from a missing signal.
+
+This provides manual dummy-model test input, not genuine posture sensing. Only zero-valued failure is detected. See [wiring, calibration, recovery, and test details](docs/POTENTIOMETER_FALLBACK.md). The **50-count / 300 ms** alert settings are unchanged.
+
 ## Run
 
 Requires Node.js 20 or newer.
